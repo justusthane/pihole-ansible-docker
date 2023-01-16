@@ -1,0 +1,77 @@
+---
+- name: Setup
+  hosts: all
+  remote_user: root
+  vars:
+    pi_ip: 10.11.1.10
+    pihole_additional_upstream_dnsservers: 1.1.1.1
+    pihole_password: password!
+    pihole_hostname: pihole
+    pihole_domain: injust.us
+
+  tasks:
+    - name: Disable cloud-init network config
+      ansible.builtin.command: 'echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg'
+
+    - name: Delete existing netplan
+      ansible.builtin.command: rm -f /etc/netplan/*
+      
+    - name: Copy netplan
+      ansible.builtin.copy:
+        src: configfiles/01-netcfg.yaml
+        dest: /etc/netplan
+    - name: Copy unbound config
+      ansible.builtin.copy:
+        src: configfiles/unbound.conf
+        dest: ./unbound/
+
+    - name: Apply Netplan
+      ansible.builtin.command: netplan apply
+
+    - name: Docker Prereqs
+      ansible.builtin.apt:
+        update_cache: true
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+    - name: Create keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+    - name: Create Docker directory
+      ansible.builtin.file:
+        path: /root/docker
+        state: directory
+    - name: Download Docker GPG keys
+      ansible.builtin.shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg --batch --yes
+    - name: Add Docker repo
+      ansible.builtin.shell: echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    - name: Disable Ubunut stub DNS resolver
+      ansible.builtin.shell: sed -r -i.orig 's/#?DNSStubListener=yes/DNSStubListener=no/g' /etc/systemd/resolved.conf
+    - name: symlink /etc/resolv to /run/systemd/resolve/resolv.conf
+      ansible.builtin.shell: sudo sh -c 'rm /etc/resolv.conf && ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf'
+
+    - name: Restart resolved
+      ansible.builtin.shell: systemctl restart systemd-resolved
+      
+    - name: Install Docker
+      ansible.builtin.apt:
+        update_cache: true
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+
+    - name: Copy Docker Compose file
+      ansible.builtin.template:
+        src: assets/docker-compose.yml.j2
+        dest: /root/docker/docker-compose.yml
+
+    - name: Run Docker
+      ansible.builtin.shell: docker compose up -d
+      args:
+        chdir: /root/docker

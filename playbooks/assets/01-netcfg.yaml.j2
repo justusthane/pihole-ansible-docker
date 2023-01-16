@@ -1,0 +1,12 @@
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+      - {{ pi_ip }}/{{ pi_mask }}
+      nameservers:
+        search: [injust.us]
+        addresses: [127.0.0.1, 1.1.1.1]
+      routes:
+        - to: default
+          via: 10.11.1.1
