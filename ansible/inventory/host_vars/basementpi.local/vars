@@ -1,0 +1,12 @@
+---
+pi_ip: 10.11.1.10
+pi_mask: 255.255.255.0
+pi_gateway: 10.11.1.1
+pi_searchdomains: injust.us
+# Comma separated, e.g.: 1.1.1.1,8.8.8.8
+pi_additional_upstream_dnsservers: 1.1.1.1
+# Semicolon separated, e.g.: 1.1.1.1;8.8.8.8
+pihole_additional_upstream_dnsservers: 1.1.1.1
+pihole_password: "{{ vault_pihole_password }}"
+pihole_hostname: pihole
+pihole_domain: injust.us

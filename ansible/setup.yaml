@@ -3,11 +3,6 @@
   hosts: all
   remote_user: root
   vars:
-    pi_ip: 10.11.1.10
-    pihole_additional_upstream_dnsservers: 1.1.1.1
-    pihole_password: password!
-    pihole_hostname: pihole
-    pihole_domain: injust.us
 
   tasks:
     - name: Disable cloud-init network config
@@ -17,12 +12,13 @@
       ansible.builtin.command: rm -f /etc/netplan/*
       
     - name: Copy netplan
-      ansible.builtin.copy:
-        src: configfiles/01-netcfg.yaml
+      ansible.builtin.template:
+        src: assets/01-netcfg.yaml.j2
         dest: /etc/netplan
+
     - name: Copy unbound config
-      ansible.builtin.copy:
-        src: configfiles/unbound.conf
+      ansible.builtin.template:
+        src: assets/unbound.conf.j2
         dest: ./unbound/
 
     - name: Apply Netplan

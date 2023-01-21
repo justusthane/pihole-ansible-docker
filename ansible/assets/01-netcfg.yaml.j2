@@ -5,8 +5,8 @@ network:
       addresses:
       - {{ pi_ip }}/{{ pi_mask }}
       nameservers:
-        search: [injust.us]
-        addresses: [127.0.0.1, 1.1.1.1]
+        search: [{{ pi_searchdomains }}]
+        addresses: [127.0.0.1, {{pi_additional_upstream_dnsservers}}]
       routes:
         - to: default
-          via: 10.11.1.1
+          via: {{ pi_gateway }}
