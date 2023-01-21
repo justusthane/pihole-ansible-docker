@@ -57,7 +57,17 @@ services:
       - '5335:53/udp'
     restart: always
 
-
+  porkbunddns:
+      image: pavlinchen/porkbun-ddns
+      container_name: porkbun-ddns
+      restart: always
+      pull_policy: always
+      environment:
+          APIKey: {{ porkbun_api_key }}
+          SecretAPIKey: {{ porkbun_secret_api_key }}
+          Domain: {{ porkbun_domain }}
+          Schedule: "{{ porkbun_cron_sched }}"
+          TZ: {{ porkbun_tz }}
 
 #   Another container you might want to have running through the proxy
 #   Note it also have ENV Vars like pihole and a host under pihole's extra_hosts
