@@ -1,6 +1,13 @@
-version: "3"
+version: "3.5"
 
 # https://github.com/pi-hole/docker-pi-hole/blob/master/README.md
+
+networks:
+  network_pihole:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.3.0/24
 
 services:
   nginx-proxy:
@@ -12,6 +19,10 @@ services:
     volumes:
       - '/var/run/docker.sock:/tmp/docker.sock'
     restart: always
+    networks:
+      network_pihole:
+        ipv4_address: 172.16.3.6
+
 
   pihole:
     image: pihole/pihole:latest
@@ -20,6 +31,9 @@ services:
       - '53:53/udp'
       - "67:67/udp"
       - '8053:80/tcp'
+    networks:
+      network_pihole:
+        ipv4_address: 172.16.3.2
     volumes:
       - './etc-pihole:/etc/pihole'
       - './etc-dnsmasq.d:/etc/dnsmasq.d'
@@ -39,6 +53,7 @@ services:
       VIRTUAL_PORT: 80
       WEBPASSWORD: {{ pihole_password }}
       FTLCONF_LOCAL_IPV4: {{ pi_ip }}
+      DNSMASQ_LISTENING: all
 
     extra_hosts:
       # Resolve to nothing domains (terminate connection)
@@ -46,6 +61,7 @@ services:
       # LAN hostnames for other docker containers using nginx-proxy
       - 'yourDomain.lan:192.168.41.55'
       - '{{ pihole_hostname }} {{ pihole_hostname }}.{{ pihole_domain }}:{{ pi_ip }}'
+      - 'citadel.tedupnorth.com:10.10.10.10'
     restart: always
 
   unbound:
@@ -56,6 +72,9 @@ services:
       - '5335:53/tcp'
       - '5335:53/udp'
     restart: always
+    networks:
+      network_pihole:
+        ipv4_address: 172.16.3.3
 
   porkbunddns:
       image: pavlinchen/porkbun-ddns
@@ -68,6 +87,41 @@ services:
           Domain: {{ porkbun_domain }}
           Schedule: "{{ porkbun_cron_sched }}"
           TZ: {{ porkbun_tz }}
+      networks:
+        network_pihole:
+          ipv4_address: 172.16.3.4
+
+  wireguard:
+    depends_on: 
+      - pihole
+    networks:
+      network_pihole:
+        ipv4_address: 172.16.3.5
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Canada/Eastern
+      - SERVERURL=justus.mycomputer.party
+      - SERVERPORT=51820
+      - PEERS=1 #optional
+      - PEERDNS=172.16.3.2 #optional
+      - INTERNAL_SUBNET=10.11.4.0 #optional
+      - ALLOWEDIPS=10.11.1.0/24,172.16.3.2 #optional
+      - PERSISTENTKEEPALIVE_PEERS=all #optional - for dynamic DNS
+      - LOG_CONFS=true #optional
+    volumes:
+      - ./wireguard/config:/config
+      - /lib/modules:/lib/modules #optional
+    ports:
+      - 51820:51820/udp
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
 
 #   Another container you might want to have running through the proxy
 #   Note it also have ENV Vars like pihole and a host under pihole's extra_hosts
@@ -82,3 +136,4 @@ services:
 #      VIRTUAL_HOST: ghost.yourDomain.lan
 #      VIRTUAL_PORT: 2368
 #    restart: always
+

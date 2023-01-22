@@ -10,7 +10,7 @@
 
     - name: Delete existing netplan
       ansible.builtin.command: rm -f /etc/netplan/*
-      
+     
     - name: Copy netplan
       ansible.builtin.template:
         src: assets/01-netcfg.yaml.j2
@@ -66,8 +66,10 @@
       ansible.builtin.template:
         src: assets/docker-compose.yml.j2
         dest: /root/docker/docker-compose.yml
+      tags: wireguard
 
     - name: Run Docker
       ansible.builtin.shell: docker compose up -d
       args:
         chdir: /root/docker
+      tags: wireguard
