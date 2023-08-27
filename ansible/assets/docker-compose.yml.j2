@@ -106,12 +106,13 @@ services:
       - PUID=0
       - PGID=0
       - TZ=Canada/Eastern
-      - SERVERURL=justus.mycomputer.party
+      - SERVERURL=vpn.coxgrunow.ca
       - SERVERPORT=51820
-      - PEERS=1 #optional
+      - PEERS=phone,tedupnorth #oAdded Docker tags to Ansible playbookptional
       - PEERDNS=172.16.3.2 #optional
       - INTERNAL_SUBNET=10.11.4.0 #optional
       - ALLOWEDIPS=10.11.1.0/24,172.16.3.2 #optional
+      - SERVER_ALLOWEDIPS_PEER_tedupnorth=10.10.0.0/16
       - PERSISTENTKEEPALIVE_PEERS=all #optional - for dynamic DNS
       - LOG_CONFS=true #optional
     volumes:
