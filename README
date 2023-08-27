@@ -1,0 +1,1 @@
+ansible-playbook -i inventory/ setup.yaml --vault-password-file=vaultpassword.s
