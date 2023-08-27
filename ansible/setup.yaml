@@ -66,10 +66,17 @@
       ansible.builtin.template:
         src: assets/docker-compose.yml.j2
         dest: /root/docker/docker-compose.yml
-      tags: wireguard
+      tags: wireguard,docker
+
+    - name: Copy ddclient config
+      ansible.builtin.template:
+        src: assets/ddclient.conf.j2
+        dest: /root/docker/ddclient/ddclient.conf
+      tags: docker
+
 
     - name: Run Docker
-      ansible.builtin.shell: docker compose up -d
+      ansible.builtin.shell: docker compose up -d --remove-orphans
       args:
         chdir: /root/docker
-      tags: wireguard
+      tags: wireguard,docker
