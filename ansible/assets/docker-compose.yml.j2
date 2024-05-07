@@ -62,6 +62,27 @@ services:
       - 'yourDomain.lan:192.168.41.55'
       - '{{ pihole_hostname }} {{ pihole_hostname }}.{{ pihole_domain }}:{{ pi_ip }}'
       - 'citadel.tedupnorth.com:10.10.10.10'
+      - 'postgres postgres.injust.us:10.11.1.14'
+      - 'proxmox proxmox.injust.us:10.11.1.5'
+      - 'omv omv.injust.us:10.11.1.12'
+      - 'docker-int docker-int.injust.us:10.11.1.13'
+      - 'docker-ext docker-ext.injust.us:10.11.1.15'
+      - 'linkwarden linkwarden.injust.us:10.11.1.15'
+      - 'linkwarden.coxgrunow.ca:10.11.1.15'
+      - 'wiki.mycomputer.party:10.11.1.15'
+      - 'wiki.coxgrunow.ca:10.11.1.15'
+      - 'paperless.injust.us:10.11.1.13'
+      - 'wiki.injust.us:10.11.1.13'
+      - 'testweb.injust.us:10.11.1.13'
+      - 'stalwart.mycomputer.party:10.11.1.15'
+      - 'linkace.mycomputer.party:10.11.1.15'
+      - 'linkding.mycomputer.party:10.11.1.15'
+      - 'wallabag.mycomputer.party:10.11.1.15'
+      - 'test.mycomputer.party:10.11.1.15'
+      - 'matrix matrix.mycomputer.party:10.11.1.16'
+      - 'wiki wiki.injust.us:10.11.1.13'
+
+
     restart: always
 
   unbound:
@@ -90,6 +111,32 @@ services:
       networks:
         network_pihole:
           ipv4_address: 172.16.3.4
+
+  porkbunddns2:
+      image: pavlinchen/porkbun-ddns
+      container_name: porkbun-ddns2
+      restart: always
+      pull_policy: always
+      environment:
+          APIKey: {{ porkbun_api_key }}
+          SecretAPIKey: {{ porkbun_secret_api_key }}
+          Domain: {{ porkbun_domain2 }}
+          Schedule: "{{ porkbun_cron_sched }}"
+          TZ: {{ porkbun_tz }}
+      networks:
+        network_pihole:
+          ipv4_address: 172.16.3.7
+
+  ddclient:
+    image: lscr.io/linuxserver/ddclient:latest
+    container_name: ddclient
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./ddclient/:/config
+    restart: unless-stopped
 
   wireguard:
     depends_on: 
@@ -138,3 +185,23 @@ services:
 #      VIRTUAL_PORT: 2368
 #    restart: always
 
+#  homeassistant:
+#      container_name: homeassistant
+#      image: "ghcr.io/home-assistant/home-assistant:stable"
+#      volumes:
+#        - ./homeassistant/config:/config
+#        - /etc/localtime:/etc/localtime:ro
+#      restart: unless-stopped
+#      privileged: true
+#      network_mode: host
+#      #environment:
+#      #  - VIRTUAL_HOST=homeassistant.coxgrunow.ca
+#      #  - VIRTUAL_PORT=8123
+  yacy:
+    container_name: yacy
+    image: "docker.io/yacy/yacy_search_server:aarch64-latest"
+    volumes:
+      - ./yacy:/opt/yacy_search_server/DATA
+    ports:
+      - 8090:8090/tcp
+      - 8443:8443/tcp

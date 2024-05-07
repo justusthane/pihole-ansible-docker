@@ -20,6 +20,7 @@
       ansible.builtin.template:
         src: assets/unbound.conf.j2
         dest: ./unbound/
+      tags: vm
 
     - name: Apply Netplan
       ansible.builtin.command: netplan apply
@@ -71,14 +72,14 @@
     - name: Copy Docker Compose file
       ansible.builtin.template:
         src: assets/docker-compose.yml.j2
-        dest: /root/docker/docker-compose.yml
-      tags: wireguard,docker
+        dest: /root/docker/docker-compose-wg.yml
+      tags: wireguard,docker,vm
 
     - name: Copy ddclient config
       ansible.builtin.template:
         src: assets/ddclient.conf.j2
         dest: /root/docker/ddclient/ddclient.conf
-      tags: docker
+      tags: docker,vm
 
 
     - name: Run Docker

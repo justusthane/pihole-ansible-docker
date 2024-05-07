@@ -14,5 +14,6 @@ pihole_domain: injust.us
 porkbun_api_key: pk1_6e6d69e80434b0aa61727637f5d7f71713f505a65004567bc8f5e34b8e516d4b
 porkbun_secret_api_key: "{{ vault_porkbun_secret_api_key }}"
 porkbun_domain: mycomputer.party justus
+porkbun_domain2: coxgrunow.ca *
 porkbun_cron_sched: "*/5 * * * *"
 porkbun_tz: Canada/Eastern
