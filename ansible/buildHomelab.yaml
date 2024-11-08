@@ -1,6 +1,6 @@
 ---
-- name: Setup
-  hosts: all
+- name: Setup pi
+  hosts: raspberrypi
   remote_user: root
   vars:
 
@@ -86,3 +86,29 @@
       args:
         chdir: /root/docker
       tags: wireguard,docker
+
+- name: Setup bastion
+  hosts: bastion
+  vars:
+  tags:
+    - bastion
+
+  tasks:
+    - name: Enable IP forwarding
+      ansible.builtin.lineinfile:
+        path: /etc/sysctl.conf
+        regexp: '^#?.*net\.ipv4\.ip_forward='
+        line: 'net.ipv4.ip_forward=1'
+    - name: Install Wireguard
+      ansible.builtin.package:
+        name: wireguard
+        state: present
+    - name: Shutdown Wireguard (remove iptables rules)
+      ansible.builtin.shell: wg-quick down wg0
+      ignore_errors: true
+    - name: Copy Wireguard config
+      ansible.builtin.template:
+        src: assets/bastion/wg0.conf.j2
+        dest: /etc/wireguard/wg0.conf
+    - name: Enable Wireguard int
+      ansible.builtin.shell: wg-quick up wg0

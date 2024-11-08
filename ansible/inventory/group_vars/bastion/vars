@@ -1,0 +1,9 @@
+---
+wg_private_key: "{{ vault_wg_private_key }}"
+wg_interface_ip: 10.11.20.1/24
+
+public_ip: 51.222.155.202
+wan_interface: ens3
+homeserver_private_ip: 10.11.1.15
+homeserver_wg_ip: 10.11.20.2 
+homeserver_wg_public_key: 84ITOv/sB0f/h7fIY+uLQeTmMDgTCjvVzIQmEsLAZmo=

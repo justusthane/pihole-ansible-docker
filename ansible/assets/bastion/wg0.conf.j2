@@ -1,0 +1,22 @@
+[Interface]
+Address = {{ wg_interface_ip }}
+ListenPort = 51820
+PrivateKey = {{ wg_private_key}}
+#https://serverfault.com/questions/1162475/iptables-exclude-a-specific-port-from-being-forwarded-to-the-destination
+PostUp = iptables -t nat -N Inbound
+PostUp = iptables -t nat -A PREROUTING -d {{ public_ip }} -j Inbound
+PostUp = iptables -t nat -A POSTROUTING -o {{ wan_interface }} -j MASQUERADE
+PostUp = iptables -t nat -A Inbound -p tcp --dport 22 -j RETURN
+PostUp = iptables -t nat -A Inbound -p tcp --dport 51820 -j RETURN
+PostUp = iptables -t nat -A Inbound -p udp --dport 51820 -j RETURN
+PostUp = iptables -t nat -A Inbound -s {{ homeserver_private_ip }} -j RETURN
+PostUp = iptables -t nat -A Inbound -j DNAT --to-destination {{ homeserver_private_ip }} -p tcp --dport 80
+PostUp = iptables -t nat -A Inbound -j DNAT --to-destination {{ homeserver_private_ip }} -p tcp --dport 443
+PostDown = iptables -D PREROUTING -d {{ public_ip }} -j Inbound -t nat
+PostDown = iptables -D POSTROUTING -o {{ wan_interface }} -j MASQUERADE -t nat
+PostDown = iptables -F Inbound -t nat
+PostDown = iptables -X Inbound -t nat
+
+[Peer]
+PublicKey = {{ homeserver_wg_public_key }}
+AllowedIPs = {{ homeserver_wg_ip }}/32,{{ homeserver_private_ip }}/32
