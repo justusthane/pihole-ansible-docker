@@ -47,7 +47,6 @@
         src: assets/{{ inventory_hostname }}/ddclient.conf.j2
         dest: /root/docker/ddclient/ddclient.conf
         backup: true
-      tags: docker
 
 - name: Setup bastion
   hosts: bastion
@@ -57,45 +56,6 @@
   roles:
     - bastion
 
-      #- name: Setup Docker hosts
-      #  hosts: 
-      #    - docker-ext
-      #    - docker-int
-      #    - basementpi
-      #  vars:
-      #  tags:
-      #    - docker
-      #    - docker_hosts
-      #  when: "'setup' in ansible_run_tags"
-      #  tasks:
-      #    - name: Docker Prereqs
-      #      ansible.builtin.apt:
-      #        update_cache: true
-      #        name:
-      #          - ca-certificates
-      #          - curl
-      #          - gnupg
-      #          - lsb-release
-      #    - name: Create keyring directory
-      #      ansible.builtin.file:
-      #        path: /etc/apt/keyrings
-      #        state: directory
-      #    - name: Create Docker directory
-      #      ansible.builtin.file:
-      #        path: /root/docker
-      #        state: directory
-      #    - name: Download Docker GPG keys
-      #      ansible.builtin.shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg --batch --yes
-      #    - name: Add Docker repo
-      #      ansible.builtin.shell: echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-      #    - name: Install Docker
-      #      ansible.builtin.apt:
-      #        update_cache: true
-      #        name:
-      #          - docker-ce
-      #          - docker-ce-cli
-      #          - containerd.io
-      #          - docker-compose-plugin
 
 - name: Configure Docker hosts
   hosts: 
@@ -116,7 +76,6 @@
       ansible.builtin.shell: docker compose up -d --remove-orphans
       args:
         chdir: /root/docker
-      tags: wireguard,docker
 
 - name: Local server Wireguard
   hosts: 
