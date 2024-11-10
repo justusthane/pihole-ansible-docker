@@ -59,9 +59,7 @@
 
 - name: Configure Docker hosts
   hosts: 
-    - docker-ext
-    - docker-int
-    - basementpi
+    - docker
   vars:
   tags:
     - docker
@@ -87,4 +85,16 @@
       ansible.builtin.template:
         src: assets/{{ inventory_hostname }}/wg0.conf.j2
         dest: /etc/wireguard/wg0.conf
+        backup: true
+
+- name: Traefik config
+  hosts:
+    - docker-ext
+  tags:
+    - traefik
+  tasks:
+    - name: "Traefik rules"
+      ansible.builtin.template:
+        src: assets/{{ inventory_hostname }}/rules.yaml.j2
+        dest: /root/docker/traefik/rules.yaml
         backup: true

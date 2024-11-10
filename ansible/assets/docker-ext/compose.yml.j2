@@ -1,24 +1,5 @@
 version: "3.5"
 services:
-  #linkwarden:
-  #  env_file: .linkwarden_env
-  #  environment:
-  #    - DATABASE_URL=postgresql://linkwarden:cigt3nau!Xh!7HDjacW@postgres.injust.us:5432/linkwarden
-  #  restart: always
-  #  # build: . # uncomment this line to build from source
-  #  image: ghcr.io/linkwarden/linkwarden:latest # comment this line to build from source
-  #  ports:
-  #    - 3000:3000
-  #  volumes:
-  #    - ./data:/data/data
-  #  labels:
-  #    #- "traefik.http.routers.whoami.rule=Host(`linkwarden.injust.us`)"
-  #    - "traefik.http.routers.linkwarden.rule=Host(`linkwarden.coxgrunow.ca`)"
-  #    - "traefik.http.routers.linkwarden.entrypoints=websecure"
-  #    - "traefik.http.routers.linkwarden.tls.certresolver=myresolver"
-  #    - traefik.http.routers.linkwarden.tls=true
-  #      #depends_on:
-  #    #- reverse-proxy
   traefik:
     container_name: traefik
     # The official v2 Traefik docker image
@@ -30,6 +11,7 @@ services:
     command: 
       - "--api.insecure=true"
       - "--providers.docker=true"
+      - "--providers.file=true"
       - "--accesslog.filepath=/var/log/traefik/access.log"
       - "--providers.file.filename=/etc/traefik/rules.yaml"
       - "--entrypoints.web.address=:80"

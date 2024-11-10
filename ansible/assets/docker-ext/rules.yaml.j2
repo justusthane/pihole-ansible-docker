@@ -1,0 +1,22 @@
+http:
+  routers:
+    router-gitea:
+      entryPoints:
+        - websecure
+      rule: Host(`gitea.mycomputer.party`)
+      service: service-gitea
+      tls:
+        certResolver: myresolver
+
+  services:
+    service-gitea:
+      loadBalancer:
+        servers:
+          - url: "http://git:3000"
+
+          #certificatesResolvers:
+          #  myresolver:
+          #    email: jg@justus.ws
+          #    storage: /letsencrypt/acme_fileprovider.json
+          #    httpChallenge:
+          #      entryPoint: web
