@@ -1,0 +1,19 @@
+- name: Enable IP forwarding
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: '^#?.*net\.ipv4\.ip_forward='
+    line: 'net.ipv4.ip_forward=1'
+- name: Install Wireguard
+  ansible.builtin.package:
+    name: wireguard
+    state: present
+- name: Shutdown Wireguard (remove iptables rules)
+  ansible.builtin.shell: wg-quick down wg0
+  ignore_errors: true
+- name: Copy Wireguard config
+  ansible.builtin.template:
+    src: assets/{{ inventory_hostname }}/wg0.conf.j2
+    dest: /etc/wireguard/wg0.conf
+    backup: true
+- name: Enable Wireguard int
+  ansible.builtin.shell: wg-quick up wg0
