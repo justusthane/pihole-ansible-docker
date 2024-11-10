@@ -1,0 +1,189 @@
+version: '3.3'
+services:
+    traefik:
+      container_name: traefik
+      # The official v2 Traefik docker image
+      image: traefik:v2.11
+      # Enables the web UI and tells Traefik to listen to docker
+      command: 
+        - --api.insecure=true 
+        - --providers.docker
+        - "--log.filePath=/var/log/traefik/traefik.log"
+        - "--entryPoints.web.address=:80"
+        - "--entryPoints.websecure.address=:443"
+        - "--certificatesresolvers.myresolver.acme.dnschallenge=true"
+        - "--certificatesresolvers.myresolver.acme.dnschallenge.provider=cloudflare"
+        #- "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+        - "--certificatesresolvers.myresolver.acme.email=jg@justus.ws"
+        - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      ports:
+        # The HTTP port
+        - "80:80"
+        - "443:443"
+        # The Web UI (enabled by --api.insecure=true)
+        - "8080:8080"
+      volumes:
+        # So that Traefik can listen to the Docker events
+        - /var/run/docker.sock:/var/run/docker.sock
+        - "./letsencrypt:/letsencrypt"
+        - "./logsTraefik:/var/log/traefik"
+      environment:
+        - "CF_API_KEY=4fa4711ae24bd19c1c17a06ce2ec6b3fa7629"
+        - "CF_API_EMAIL=jg@justus.ws"
+    #squid:
+    #    container_name: squid
+    #    volumes:
+    #        #- '/root/docker/squid/logs:/var/log/squid'
+    #        #  - '/root/docker/squid/data:/var/spool/squid'
+    #        - '/root/docker/squid/squid.conf:/etc/squid/squid.conf'
+    #        #  - '/rood/docker/squid/config-snippet:/etc/squid/conf.d/snippet.conf'
+    #    environment:
+    #        - TZ=America/Thunder_Bay
+    #    ports:
+    #        - '3128:3128'
+    #    image: 'ubuntu/squid:5.2-22.04_beta'
+    #      #yacy_search_server:
+    #      #    container_name: yacy
+    #      #    ports:
+    #      #        - '8090:8090'
+    #      #        - '8443:8443'
+    #      #    logging:
+    #      #        options: 
+    #      #          max-size: 200
+    #      #          max-file: 2
+    #      #    image: 'yacy/yacy_search_server:latest'
+    paperless-broker:
+      image: docker.io/library/redis:7
+      container_name: paperless-broker
+      restart: unless-stopped
+      volumes:
+        - redisdata:/data
+
+          #    db:
+          #      image: docker.io/library/postgres:15
+          #      restart: unless-stopped
+          #      volumes:
+          #        - pgdata:/var/lib/postgresql/data
+          #      environment:
+          #        POSTGRES_DB: paperless
+          #        POSTGRES_USER: paperless
+          #        POSTGRES_PASSWORD: paperless
+
+    paperless-webserver:
+      image: ghcr.io/paperless-ngx/paperless-ngx:latest
+      container_name: paperless-webserver
+      restart: unless-stopped
+      depends_on:
+        #        - db
+        - paperless-broker
+      ports:
+        - "8000:8000"
+      volumes:
+        - data:/usr/src/paperless/data
+        - media:/usr/src/paperless/media
+        - export:/usr/src/paperless/export
+        - consume:/usr/src/paperless/consume
+      env_file: docker-compose.env
+        #environment:
+      labels:
+        - "traefik.http.routers.paperless.rule=Host(`paperless.injust.us`)"
+        - "traefik.http.routers.paperless.entrypoints=websecure"
+        - traefik.http.routers.paperless.tls=true
+        - "traefik.http.routers.paperless.tls.certresolver=myresolver"
+    webdav:
+      container_name: webdav
+      image: ionelmc/webdav
+      restart: unless-stopped
+      ports:
+        - "8081:8080"
+      environment:
+        WEBDAV_USERNAME: alice
+        WEBDAV_PASSWORD: secret1234
+        UID: 1001
+      volumes:
+        - ./consume:/media
+          #webdav:
+          #  container_name: webdav
+          #  image: bytemark/webdav
+          #  restart: unless-stopped
+          #  ports:
+          #    - "8081:80"
+          #  environment:
+          #    AUTH_TYPE: Digest
+          #    USERNAME: alice
+          #    PASSWORD: secret1234
+          #  volumes:
+          #    - consume:/var/lib/dav/data/ScannerPro
+      labels:
+        - "traefik.http.routers.webdav.rule=Host(`webdav.injust.us`)"
+    testweb:
+      image: httpd:2.4
+      ports: 
+        - "8008:80"
+      volumes:
+        - ./htdocs:/usr/local/apache2/htdocs/
+      labels:
+        - "traefik.http.routers.testweb.rule=Host(`testweb.injust.us`)"
+        - traefik.http.routers.testweb.tls=true
+        - "traefik.http.routers.testweb.entrypoints=websecure"
+        - "traefik.http.routers.testweb.tls.certresolver=myresolver"
+    wiki:
+      image: ghcr.io/requarks/wiki:2
+      container_name: wiki
+      environment:
+        DB_TYPE: postgres
+        DB_HOST: postgres.injust.us
+        DB_PORT: 5432
+        DB_USER: wikijs
+        DB_PASS: 3Jfr7nmY4KBauR3nuHno
+        DB_NAME: wikijs
+      restart: unless-stopped
+      ports:
+        - "8009:3000"
+      labels:
+        - "traefik.http.routers.wiki.rule=Host(`wiki.injust.us`)"
+        - traefik.http.routers.wiki.tls=true
+        - "traefik.http.routers.wiki.entrypoints=websecure"
+        - "traefik.http.routers.wiki.tls.certresolver=myresolver"
+    actual_server:
+      image: docker.io/actualbudget/actual-server:latest
+      ports:
+        # This line makes Actual available at port 5006 of the device you run the server on,
+        # i.e. http://localhost:5006. You can change the first number to change the port, if you want.
+        - '5006:5006'
+      #environment:
+        # Uncomment any of the lines below to set configuration options.
+        # - ACTUAL_HTTPS_KEY=/data/selfhost.key
+        # - ACTUAL_HTTPS_CERT=/data/selfhost.crt
+        # - ACTUAL_PORT=5006
+        # - ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20
+        # - ACTUAL_UPLOAD_SYNC_ENCRYPTED_FILE_SYNC_SIZE_LIMIT_MB=50
+        # - ACTUAL_UPLOAD_FILE_SIZE_LIMIT_MB=20
+        # See all options and more details at https://actualbudget.github.io/docs/Installing/Configuration
+        # !! If you are not using any of these options, remove the 'environment:' tag entirely.
+      volumes:
+        # Change './actual-data' below to the path to the folder you want Actual to store its data in on your server.
+        # '/data' is the path Actual will look for its files in by default, so leave that as-is.
+        - ./actual-data:/data
+      labels:
+        - "traefik.http.routers.actual.rule=Host(`actual.injust.us`)"
+        - traefik.http.routers.actual.tls=true
+        - "traefik.http.routers.actual.entrypoints=websecure"
+        - "traefik.http.routers.actual.tls.certresolver=myresolver"
+      restart: unless-stopped
+
+volumes:
+  data:
+  media:
+  pgdata:
+  redisdata:
+  consume:
+    driver_opts:
+      type: "nfs"
+      o: "addr=omv.injust.us,nolock,soft,rw"
+      device: ":/export/Paperless"
+  export:
+    driver_opts:
+      type: "nfs"
+      o: "addr=omv.injust.us,nolock,soft,rw"
+      device: ":/export/Paperless_Export"

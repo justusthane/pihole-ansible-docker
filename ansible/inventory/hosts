@@ -1,5 +1,7 @@
-[rasperrypi]
-basementpi.local ansible_host=10.11.1.10 ansible_ssh_user=root
+basementpi ansible_host=10.11.1.10 ansible_ssh_user=root
 
-[bastion]
-51.222.155.202 ansible_ssh_user=root
+bastion ansible_host=51.222.155.202 ansible_ssh_user=root
+
+[docker]
+docker-ext ansible_ssh_user=root
+docker-int ansible_ssh_user=root

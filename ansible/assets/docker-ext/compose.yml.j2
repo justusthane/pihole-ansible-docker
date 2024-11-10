@@ -1,0 +1,649 @@
+version: "3.5"
+services:
+  #linkwarden:
+  #  env_file: .linkwarden_env
+  #  environment:
+  #    - DATABASE_URL=postgresql://linkwarden:cigt3nau!Xh!7HDjacW@postgres.injust.us:5432/linkwarden
+  #  restart: always
+  #  # build: . # uncomment this line to build from source
+  #  image: ghcr.io/linkwarden/linkwarden:latest # comment this line to build from source
+  #  ports:
+  #    - 3000:3000
+  #  volumes:
+  #    - ./data:/data/data
+  #  labels:
+  #    #- "traefik.http.routers.whoami.rule=Host(`linkwarden.injust.us`)"
+  #    - "traefik.http.routers.linkwarden.rule=Host(`linkwarden.coxgrunow.ca`)"
+  #    - "traefik.http.routers.linkwarden.entrypoints=websecure"
+  #    - "traefik.http.routers.linkwarden.tls.certresolver=myresolver"
+  #    - traefik.http.routers.linkwarden.tls=true
+  #      #depends_on:
+  #    #- reverse-proxy
+  traefik:
+    container_name: traefik
+    # The official v2 Traefik docker image
+    image: traefik:v3.1
+    restart: unless-stopped
+    depends_on:
+      - crowdsec
+    # Enables the web UI and tells Traefik to listen to docker
+    command: 
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+      - "--providers.file.filename=/etc/traefik/rules.yaml"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.email=jg@justus.ws"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - --experimental.plugins.crowdsec-bouncer.modulename=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+      - --experimental.plugins.crowdsec-bouncer.version=v1.2.1
+        #- "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+    ports:
+      # The HTTP port
+      - "80:80"
+      - "443:443"
+      # The Web UI (enabled by --api.insecure=true)
+      - "8080:8080"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+        #- ./traefik/traefik.yml:/etc/traefik/traefik.yml
+      - ./traefik:/etc/traefik
+      - ./letsencrypt:/letsencrypt
+      - "./logsTraefik:/var/log/traefik"
+    networks:
+      - proxy
+      - backend
+      - docker_default
+    labels:
+      - "traefik.http.middlewares.authtest.basicauth.users=user:$$apr1$$VKJibd3x$$SwY/BRH.QTeVEaRDnLKvv0"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.enabled=true"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdseclapikey=dTkMpqDs/ryjvw1tQaV3k0VtCFQUlh+hrdZMEWnxfXc"
+      - "traefik.http.middlewares.authchain.chain.middlewares=crowdsec@docker,authentik@docker"
+      - "traefik.http.middlewares.internalOnly.ipallowlist.sourcerange=192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12"
+      - "traefik.http.middlewares.internalOnlyWithAuth.chain.middlewares=internalOnly@docker,crowdsec@docker,authentik@docker"
+        
+        #ddclient:
+        #  image: lscr.io/linuxserver/ddclient:latest
+        #  container_name: ddclient
+        #  environment:
+        #    - PUID=1000
+        #    - PGID=1000
+        #    - TZ=America/Thunder_Bay
+        #  volumes:
+        #    - ./ddclient/:/config
+        #  restart: unless-stopped
+        #porkbunddns:
+        #  image: pavlinchen/porkbun-ddns
+        #  container_name: porkbun-ddns
+        #  restart: unless-stopped
+        #  pull_policy: always
+        #  environment:
+        #      APIKey: pk1_6896ac0da1af81d9b7ae1ef0ee65b7f8bc655fc0099588e1db9bb9708da2d2ec
+        #      SecretAPIKey: k1_8c0d61edd906856c4f4f979b6207049ea0b0b50aec5759dacb86c24cb0bf001d
+        #      Domain: mycomputer.party wiki
+        #      Schedule: "*/5 * * * *" #optional
+        #      TZ: Canada/Eastern #optional
+  dokuwiki:
+    image: bitnami/dokuwiki:20240206
+    restart: unless-stopped
+    container_name: dokuwiki
+    ports:
+      - "8007:8080"
+    environment:
+      PHP_TIMEZONE: America/Toronto
+      DOKUWIKI_USERNAME: admin
+    volumes:
+      - ./dokuwiki:/bitnami/dokuwiki
+    networks:
+      -  backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dokuwiki.rule=Host(`wiki.mycomputer.party`)"
+      - "traefik.http.routers.dokuwiki.entrypoints=websecure"
+      - "traefik.http.routers.dokuwiki.tls.certresolver=myresolver"
+      - traefik.http.routers.dokuwiki.tls=true
+      - "traefik.http.routers.dokuwiki.middlewares=crowdsec@docker"
+  mail-server:
+      tty: true
+      stdin_open: true
+      restart: unless-stopped
+      ports:
+          - 8443:443
+          - 8008:8080
+          - 25:25
+          - 587:587
+          - 465:465
+          - 143:143
+          - 993:993
+          - 4190:4190
+      volumes:
+        - ./stalwart-mail:/opt/stalwart-mail
+      container_name: stalwart-mail
+      image: stalwartlabs/mail-server:latest
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.stalwart.rule=Host(`stalwart.mycomputer.party`)"
+        - "traefik.http.routers.stalwart.entrypoints=websecure"
+        - "traefik.http.routers.stalwart.tls.certresolver=myresolver"
+        - "traefik.http.routers.stalwart.tls=true"
+        - "traefik.http.services.stalwart-http.loadbalancer.server.port=8080"
+  # --- MariaDB
+  #linkace-db:
+  #  image: mariadb:11.2
+  #  container_name: linkace-db
+  #  restart: unless-stopped
+  #  command: mariadbd --character-set-server=utf8mb4 --collation-server=utf8mb4_bin
+  #  environment:
+  #    - MYSQL_ROOT_PASSWORD=LRd5^AwDF76CvE6fMb
+  #    - MYSQL_USER=linkace
+  #    - MYSQL_PASSWORD=linkace
+  #    - MYSQL_DATABASE=linkace
+  #  volumes:
+  #    - db:/var/lib/mysql
+
+  ## --- LinkAce Image with PHP and nginx
+  #linkace-app:
+  #  image: linkace/linkace:simple
+  #  container_name: linkace-app
+  #  restart: unless-stopped
+  #  depends_on:
+  #    - linkace-db
+  #  ports:
+  #    - "8009:80"
+  #    #- "0.0.0.0:443:443"
+  #  volumes:
+  #    - ./linkace/.env:/app/.env
+  #    - ./linkace/backups:/app/storage/app/backups
+  #    - linkace_logs:/app/storage/logs
+  #    # Remove the hash of the following line if you want to use HTTPS for this container
+  #    #- ./nginx-ssl.conf:/etc/nginx/conf.d/default.conf:ro
+  #    #- /path/to/your/ssl/certificates:/certs:ro
+  #  labels:
+  #    - "traefik.enable=true"
+  #    - "traefik.http.routers.linkace.rule=Host(`linkace.mycomputer.party`)"
+  #    - "traefik.http.routers.linkace.entrypoints=websecure"
+  #    - "traefik.http.routers.linkace.tls.certresolver=myresolver"
+  #    - "traefik.http.routers.linkace.tls=true"
+  #    - "traefik.http.services.linkace-http.loadbalancer.server.port=80"
+
+  linkding:
+    container_name: "${LD_CONTAINER_NAME:-linkding}"
+    image: sissbruecker/linkding:latest-plus
+    ports:
+      - "${LD_HOST_PORT:-9090}:9090"
+    volumes:
+      - "${LD_HOST_DATA_DIR:-./data}:/etc/linkding/data"
+    env_file:
+      - .env-linkding
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.linkding.rule=Host(`linkding.mycomputer.party`)"
+      - "traefik.http.routers.linkding.entrypoints=websecure"
+      - "traefik.http.routers.linkding.tls.certresolver=myresolver"
+      - "traefik.http.routers.linkding.tls=true"
+      - "traefik.http.services.linkding-http.loadbalancer.server.port=9090"
+      - "traefik.http.routers.linkding.middlewares=authchain@docker"
+  wallabag:
+    container_name: wallabag
+    restart: unless-stopped
+    image: wallabag/wallabag
+    environment:
+      #- MYSQL_ROOT_PASSWORD=wallaroot
+      - POSTGRES_USER=wallabag
+      - POSTGRES_PASSWORD=Mo8ntF92q5oWNV6TbS7t
+      - SYMFONY__ENV__DATABASE_DRIVER=pdo_pgsql
+      - SYMFONY__ENV__DATABASE_HOST=postgres.injust.us
+      - SYMFONY__ENV__DATABASE_PORT=5432
+      - SYMFONY__ENV__DATABASE_NAME=wallabag
+      - SYMFONY__ENV__DATABASE_USER=wallabag
+      - SYMFONY__ENV__DATABASE_PASSWORD=Mo8ntF92q5oWNV6TbS7t
+      - SYMFONY__ENV__DATABASE_TABLE_PREFIX="wallabag_"
+      - SYMFONY__ENV__MAILER_DSN=smtp://127.0.0.1
+      - SYMFONY__ENV__FROM_EMAIL=wallabag@example.com
+      - SYMFONY__ENV__DOMAIN_NAME=https://wallabag.mycomputer.party
+      - SYMFONY__ENV__SERVER_NAME="My Computer Party Wallabag"
+    ports:
+      - "8010:80"
+    volumes:
+      - ./wallabag/images:/var/www/wallabag/web/assets/images
+    healthcheck:
+      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost"]
+      interval: 1m
+      timeout: 3s
+    depends_on:
+      - redis
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wallabag.rule=Host(`wallabag.mycomputer.party`)"
+      - "traefik.http.routers.wallabag.entrypoints=websecure"
+      - "traefik.http.routers.wallabag.tls.certresolver=myresolver"
+      - "traefik.http.routers.wallabag.tls=true"
+      - "traefik.http.services.wallabag-http.loadbalancer.server.port=80"
+      - "traefik.http.routers.wallabag.middlewares=crowdsec@docker"
+  redis:
+    container_name: redis
+    image: redis:alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 20s
+      timeout: 3s
+  authentik-server:
+    container_name: authentik-server
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2024.8.2}
+    restart: unless-stopped
+    command: server
+    environment:
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_HOST: https://authentik.mycomputer.party
+      AUTHENTIK_POSTGRESQL__HOST: postgres.injust.us
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASS}
+    volumes:
+      - ./authentik/media:/media
+      - ./authentik/custom-templates:/templates
+    env_file:
+      - .authentik-env
+    ports:
+      - "${COMPOSE_PORT_HTTP:-9000}:9000"
+      - "${COMPOSE_PORT_HTTPS:-9443}:9443"
+    depends_on:
+      - redis
+    labels:
+      - "traefik.enable=true"
+        #- "traefik.http.routers.authentik.rule=Host(`authentik.mycomputer.party`)"
+      - "traefik.http.routers.authentik.rule=Host(`authentik.mycomputer.party`) || PathPrefix(`/outpost.goauthentik.io/`)"
+      - "traefik.http.routers.authentik.entrypoints=websecure"
+      - "traefik.http.routers.authentik.tls.certresolver=myresolver"
+      - "traefik.http.routers.authentik.tls=true"
+      - "traefik.http.services.authentik-http.loadbalancer.server.port=9000"
+      - "traefik.http.middlewares.authentik.forwardauth.address=http://authentik-server:9000/outpost.goauthentik.io/auth/traefik"
+      - "traefik.http.middlewares.authentik.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.authentik.forwardauth.authResponseHeaders=X-authentik-username,X-authentik-groups,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version"
+      - "traefik.http.routers.authentik.middlewares=crowdsec@docker"
+  authentik-worker:
+    container_name: authentik-worker
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2024.8.2}
+    restart: unless-stopped
+    command: worker
+    environment:
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_POSTGRESQL__HOST: postgres.injust.us
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASS}
+    # `user: root` and the docker socket volume are optional.
+    # See more for the docker socket integration here:
+    # https://goauthentik.io/docs/outposts/integrations/docker
+    # Removing `user: root` also prevents the worker from fixing the permissions
+    # on the mounted folders, so when removing this make sure the folders have the correct UID/GID
+    # (1000:1000 by default)
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./authentik/media:/media
+      - ./authentik/certs:/certs
+      - ./authentik/custom-templates:/templates
+    env_file:
+      - .authentik-env
+    depends_on:
+      - redis
+  changedetection:
+      image: ghcr.io/dgtlmoon/changedetection.io
+      container_name: changedetection
+      hostname: changedetection
+      volumes:
+        - changedetection-data:/datastore
+# Configurable proxy list support, see https://github.com/dgtlmoon/changedetection.io/wiki/Proxy-configuration#proxy-list-support
+#        - ./proxies.json:/datastore/proxies.json
+
+      environment:
+  #        Default listening port, can also be changed with the -p option
+  #      - PORT=5000
+
+  #      - PUID=1000
+  #      - PGID=1000
+  #
+  #        Log levels are in descending order. (TRACE is the most detailed one)
+  #        Log output levels: TRACE, DEBUG(default), INFO, SUCCESS, WARNING, ERROR, CRITICAL
+  #      - LOGGER_LEVEL=DEBUG
+  #
+  #       Alternative WebDriver/selenium URL, do not use "'s or 's!
+  #      - WEBDRIVER_URL=http://browser-chrome:4444/wd/hub
+  #
+  #       WebDriver proxy settings webdriver_proxyType, webdriver_ftpProxy, webdriver_noProxy,
+  #                                webdriver_proxyAutoconfigUrl, webdriver_autodetect,
+  #                                webdriver_socksProxy, webdriver_socksUsername, webdriver_socksVersion, webdriver_socksPassword
+  #
+  #             https://selenium-python.readthedocs.io/api.html#module-selenium.webdriver.common.proxy
+  #
+  #       Alternative Playwright URL, do not use "'s or 's!
+  #      - PLAYWRIGHT_DRIVER_URL=ws://playwright-chrome:3000
+  #
+  #       Playwright proxy settings playwright_proxy_server, playwright_proxy_bypass, playwright_proxy_username, playwright_proxy_password
+  #
+  #             https://playwright.dev/python/docs/api/class-browsertype#browser-type-launch-option-proxy
+  #
+  #        Plain requests - proxy support example.
+  #      - HTTP_PROXY=socks5h://10.10.1.10:1080
+  #      - HTTPS_PROXY=socks5h://10.10.1.10:1080
+  #
+  #        An exclude list (useful for notification URLs above) can be specified by with
+  #      - NO_PROXY="localhost,192.168.0.0/24"
+  #
+  #        Base URL of your changedetection.io install (Added to the notification alert)
+        - BASE_URL=https://changedetection.mycomputer.party
+  #        Respect proxy_pass type settings, `proxy_set_header Host "localhost";` and `proxy_set_header X-Forwarded-Prefix /app;`
+  #        More here https://github.com/dgtlmoon/changedetection.io/wiki/Running-changedetection.io-behind-a-reverse-proxy-sub-directory
+        - USE_X_SETTINGS=1
+  #
+  #        Hides the `Referer` header so that monitored websites can't see the changedetection.io hostname.
+  #- HIDE_REFERER=true
+  #
+  #        Default number of parallel/concurrent fetchers
+  #      - FETCH_WORKERS=10
+
+      # Comment out ports: when using behind a reverse proxy , enable networks: etc.
+      ports:
+        - 5000:5000
+      restart: unless-stopped
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.changedetection.rule=Host(`changedetection.mycomputer.party`)"
+        - "traefik.http.routers.changedetection.entrypoints=websecure"
+        - "traefik.http.routers.changedetection.tls.certresolver=myresolver"
+        - "traefik.http.routers.changedetection.tls=true"
+        - "traefik.http.services.changedetection-http.loadbalancer.server.port=5000"
+        - "traefik.http.routers.changedetection.middlewares=authchain@docker"
+
+     # Used for fetching pages via WebDriver+Chrome where you need Javascript support.
+     # Now working on arm64 (needs testing on rPi - tested on Oracle ARM instance)
+     # replace image with seleniarm/standalone-chromium:4.0.0-20211213
+
+     # If WEBDRIVER or PLAYWRIGHT are enabled, changedetection container depends on that
+     # and must wait before starting (substitute "browser-chrome" with "playwright-chrome" if last one is used)
+#    depends_on:
+#        browser-chrome:
+#            condition: service_started
+
+     # Used for fetching pages via Playwright+Chrome where you need Javascript support.
+     # RECOMMENDED FOR FETCHING PAGES WITH CHROME
+#    playwright-chrome:
+#        hostname: playwright-chrome
+#        image: dgtlmoon/sockpuppetbrowser:latest
+#        cap_add:
+#            - SYS_ADMIN
+## SYS_ADMIN might be too much, but it can be needed on your platform https://github.com/puppeteer/puppeteer/blob/main/docs/troubleshooting.md#running-puppeteer-on-gitlabci
+#        restart: unless-stopped
+#        environment:
+#            - SCREEN_WIDTH=1920
+#            - SCREEN_HEIGHT=1024
+#            - SCREEN_DEPTH=16
+#            - MAX_CONCURRENT_CHROME_PROCESSES=10
+
+     # Used for fetching pages via Playwright+Chrome where you need Javascript support.
+     # Note: Works well but is deprecated, does not fetch full page screenshots (doesnt work with Visual Selector)
+     #       Does not report status codes (200, 404, 403) and other issues
+#    browser-chrome:
+#        hostname: browser-chrome
+#        image: selenium/standalone-chrome:4
+#        environment:
+#            - VNC_NO_PASSWORD=1
+#            - SCREEN_WIDTH=1920
+#            - SCREEN_HEIGHT=1080
+#            - SCREEN_DEPTH=24
+#        volumes:
+#            # Workaround to avoid the browser crashing inside a docker container
+#            # See https://github.com/SeleniumHQ/docker-selenium#quick-start
+#            - /dev/shm:/dev/shm
+#        restart: unless-stopped
+
+  healthchecks:
+    container_name: healthchecks
+    restart: unless-stopped
+    # To use a pre-built image, remove the above "build" section
+    # and uncomment the following line:
+    image: healthchecks/healthchecks:latest
+    env_file:
+        - .healthchecks-env
+    ports:
+        - "8011:8000"
+        # To enable SMTP on port 2525, set SMTPD_PORT=2525 in .env
+        # and uncomment the following line:
+        # - "2525:2525"
+    command: bash -c 'uwsgi /opt/healthchecks/docker/uwsgi.ini'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.healthchecks.rule=Host(`healthchecks.mycomputer.party`)"
+      - "traefik.http.routers.healthchecks.entrypoints=websecure"
+      - "traefik.http.routers.healthchecks.tls.certresolver=myresolver"
+      - "traefik.http.routers.healthchecks.tls=true"
+      - "traefik.http.services.healthchecks-http.loadbalancer.server.port=8000"
+      - "traefik.http.routers.healthchecks.middlewares=authchain@docker"
+  apache:
+    image: php:7.2-apache
+    volumes: 
+      - ./apache:/var/www/html
+    ports:
+      - 8012:80
+    container_name: apache
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.apache.rule=Host(`apache.mycomputer.party`)"
+      - "traefik.http.routers.apache.entrypoints=websecure"
+      - "traefik.http.routers.apache.tls.certresolver=myresolver"
+      - "traefik.http.routers.apache.tls=true"
+      - "traefik.http.services.apache-http.loadbalancer.server.port=80"
+      - "traefik.http.routers.apache.middlewares=internalOnlyWithAuth@docker"
+    networks:
+      - backend
+  apache2:
+    image: php:7.2-apache
+    volumes: 
+      - ./apache:/var/www/html
+    ports:
+      - 8013:80
+    container_name: apache2
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.apache2.rule=Host(`apache2.mycomputer.party`)"
+      - "traefik.http.routers.apache2.entrypoints=websecure"
+      - "traefik.http.routers.apache2.tls.certresolver=myresolver"
+      - "traefik.http.routers.apache2.tls=true"
+      - "traefik.http.services.apache2-http.loadbalancer.server.port=80"
+        #- traefik.http.routers.apache2.middlewares=authchain@docker
+    networks:
+      - backend
+
+        #wireguard:
+        #  image: lscr.io/linuxserver/wireguard
+        #  container_name: wireguard
+        #  cap_add:
+        #    - NET_ADMIN
+        #    - SYS_MODULE
+        #  environment:
+        #    - PUID=1001
+        #    - PGID=1001
+        #    - TZ=America/Thunder_Bay
+        #    - PEERS=thelma
+        #    - INTERNAL_SUBNET=10.11.20.0/24
+        #    - ALLOWEDIPS=10.11.0.0/16
+        #  volumes:
+        #    - ./wireguard:/config
+        #    - /lib/modules:/lib/modules
+        #  networks:
+        #    wireguard:
+        #      ipv4_address: 172.20.0.50
+        #  sysctls:
+        #    - net.ipv4.conf.all.src_valid_mark=1
+        #  restart: unless-stopped
+  crowdsec:
+    image: crowdsecurity/crowdsec
+    container_name: crowdsec
+    environment:
+      PGID: "1001"
+      COLLECTIONS: "crowdsecurity/sshd crowdsecurity/linux crowdsecurity/traefik crowdsecurity/http-cve firix/authentik"
+    ports:
+      - 8081:8080
+    expose:
+      - "8080"
+    volumes:
+      #- ./crowdsec/logs:/var/log/crowdsec:ro
+      - ./crowdsec/db:/var/lib/crowdsec/data
+      - /var/log:/var/log:ro
+      - ./crowdsec/opt:/etc/crowdsec
+      - ./logsTraefik:/logs/traefik:ro
+      - /var/run/docker.sock:/var/run/docker.sock #To read container logs, can use socket-proxy instead
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=false"
+        #- "traefik.http.routers.crowdsec.rule=Host(`crowdsec.mycomputer.party`)"
+        #- "traefik.http.routers.crowdsec.entrypoints=websecure"
+        #- "traefik.http.routers.crowdsec.tls.certresolver=myresolver"
+        #- "traefik.http.routers.crowdsec.tls=true"
+    networks:
+      - proxy
+      - backend
+  ddns-updater:
+    image: docker.io/qmcgaw/ddns-updater
+    container_name: ddns-updater
+    ports:
+      - 8014:8000
+    volumes:
+      - ./ddns-updater:/updater/data
+  bookstack:
+    image: lscr.io/linuxserver/bookstack
+    container_name: bookstack
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Thunder_Bay
+      - APP_URL=https://bookstack.mycomputer.party
+      - DB_HOST=bookstack_db
+      - DB_PORT=3306
+      - DB_USER=bookstack
+      - DB_PASS=Chn8i#ExmX@J1C
+      - DB_DATABASE=bookstackapp
+    env_file:
+      - .env-bookstack
+    volumes:
+      - /path/to/bookstack_app_data:/config
+    ports:
+      - 6875:80
+    restart: unless-stopped
+    depends_on:
+      - bookstack_db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bookstack.rule=Host(`bookstack.mycomputer.party`)"
+      - "traefik.http.routers.bookstack.entrypoints=websecure"
+      - "traefik.http.routers.bookstack.tls.certresolver=myresolver"
+      - "traefik.http.routers.bookstack.tls=true"
+  bookstack_db:
+    image: lscr.io/linuxserver/mariadb
+    container_name: bookstack_db
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Thunder_Bay
+      - MYSQL_ROOT_PASSWORD=cSoO1dcaS5sI&t
+      - MYSQL_DATABASE=bookstackapp
+      - MYSQL_USER=bookstack
+      - MYSQL_PASSWORD=Chn8i#ExmX@J1C
+    volumes:
+      - ./bookstack_db_data:/config
+    restart: unless-stopped
+
+      #  immich-server:
+      #    container_name: immich_server
+      #    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+      #    # extends:
+      #    #   file: hwaccel.transcoding.yml
+      #    #   service: cpu # set to one of [nvenc, quicksync, rkmpp, vaapi, vaapi-wsl] for accelerated transcoding
+      #    volumes:
+      #      # Do not edit the next line. If you want to change the media storage location on your system, edit the value of UPLOAD_LOCATION in the .env file
+      #      - ${UPLOAD_LOCATION}:/usr/src/app/upload
+      #      - /etc/localtime:/etc/localtime:ro
+      #    env_file:
+      #      - .env-immich
+      #    ports:
+      #      - 2283:3001
+      #    depends_on:
+      #      - redis
+      #        #- database
+      #    restart: always
+      #    healthcheck:
+      #      disable: false
+      #  database:
+      #    container_name: immich_postgres
+      #    image: docker.io/tensorchord/pgvecto-rs:pg14-v0.2.0@sha256:90724186f0a3517cf6914295b5ab410db9ce23190a2d9d0b9dd6463e3fa298f0
+      #    environment:
+      #      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      #      POSTGRES_USER: ${DB_USERNAME}
+      #      POSTGRES_DB: ${DB_DATABASE_NAME}
+      #      POSTGRES_INITDB_ARGS: '--data-checksums'
+      #    volumes:
+      #      # Do not edit the next line. If you want to change the database storage location on your system, edit the value of DB_DATA_LOCATION in the .env file
+      #      - ${DB_DATA_LOCATION}:/var/lib/postgresql/data
+      #    healthcheck:
+      #      test: pg_isready --dbname='${DB_DATABASE_NAME}' --username='${DB_USERNAME}' || exit 1; Chksum="$$(psql --dbname='${DB_DATABASE_NAME}' --username='${DB_USERNAME}' --tuples-only --no-align --command='SELECT COALESCE(SUM(checksum_failures), 0) FROM pg_stat_database')"; echo "checksum failure count is $$Chksum"; [ "$$Chksum" = '0' ] || exit 1
+      #      interval: 5m
+      #      start_interval: 30s
+      #      start_period: 5m
+      #    command: ["postgres", "-c", "shared_preload_libraries=vectors.so", "-c", 'search_path="$$user", public, vectors', "-c", "logging_collector=on", "-c", "max_wal_size=2GB", "-c", "shared_buffers=512MB", "-c", "wal_compression=on"]
+      #    restart: always
+      #
+      #  immich-machine-learning:
+      #    container_name: immich_machine_learning
+      #    # For hardware acceleration, add one of -[armnn, cuda, openvino] to the image tag.
+      #    # Example tag: ${IMMICH_VERSION:-release}-cuda
+      #    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+      #    # extends: # uncomment this section for hardware acceleration - see https://immich.app/docs/features/ml-hardware-acceleration
+      #    #   file: hwaccel.ml.yml
+      #    #   service: cpu # set to one of [armnn, cuda, openvino, openvino-wsl] for accelerated inference - use the `-wsl` version for WSL2 where applicable
+      #    volumes:
+      #      - model-cache:/cache
+      #    env_file:
+      #      - .env-immich
+      #    restart: always
+      #    healthcheck:
+      #      disable: false
+      #
+      #        #  redis:
+      #        #    container_name: immich_redis
+      #        #    image: docker.io/redis:6.2-alpine@sha256:2d1463258f2764328496376f5d965f20c6a67f66ea2b06dc42af351f75248792
+      #        #    healthcheck:
+      #        #      test: redis-cli ping || exit 1
+      #        #    restart: always
+
+
+
+
+volumes:
+  linkace_logs:
+  db:
+    driver: local
+  changedetection-data:
+  model-cache:
+
+networks:
+  wireguard:
+    name: wireguard
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.20.0.0/24"
+  backend:
+  proxy:
+  docker_default:
+    external: True
+
+
+
