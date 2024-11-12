@@ -1,6 +1,7 @@
 - name: Setup Docker hosts
   hosts: 
     - docker
+    - gitea
   vars:
   tasks:
     - name: Docker Prereqs

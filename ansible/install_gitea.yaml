@@ -1,0 +1,7 @@
+---
+- name: Install Gitea
+  hosts:
+    - gitea
+  roles:
+    - install_gitea
+    

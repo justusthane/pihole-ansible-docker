@@ -1,0 +1,3 @@
+gitea_instance_url: https://gitea.mycomputer.party
+gitea_runner_token: "{{ vault_runner_token }}"
+gitea_runner_name: runner1

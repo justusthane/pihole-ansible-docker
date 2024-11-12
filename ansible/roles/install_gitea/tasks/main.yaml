@@ -1,0 +1,63 @@
+- name: Install Git
+  ansible.builtin.package:
+    name: git
+    state: present
+- name: Download Gitea binary
+  ansible.builtin.get_url:
+    url: https://dl.gitea.com/gitea/{{ gitea_version }}/gitea-{{ gitea_version }}-linux-amd64
+    dest: /usr/local/bin/gitea
+    mode: +x
+- name: Create git user
+  ansible.builtin.user:
+    name: git
+    state: present
+    system: true
+    shell: /bin/bash
+    comment: Git Version Control
+    password: !
+    create_home: true
+- name: Create /var/lib/gitea
+  ansible.builtin.file:
+    state: directory
+    path: /var/lib/gitea
+    owner: git
+    group: git
+    mode: '750'
+- name: Create /var/lib/gitea subdirs
+  ansible.builtin.file:
+    state: directory
+    path: "{{ item.path }}"
+    owner: git
+    group: git
+    mode: '750'
+  loop:
+    - { path: /var/lib/gitea/custom}
+    - { path: /var/lib/gitea/data}
+    - { path: /var/lib/gitea/log}
+- name: Create /etc/gitea
+  ansible.builtin.file:
+    path: /etc/gitea
+    state: directory
+    owner: root
+    group: git
+    mode: '770'
+- name: Get systemd unit file
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/go-gitea/gitea/refs/heads/release/v{{ gitea_minor_version }}/contrib/systemd/gitea.service
+    dest: /etc/systemd/system/gitea.service
+- name: Start service
+  ansible.builtin.systemd_service:
+    name: gitea
+    enabled: true
+    state: started
+    #- name: Set permissions after install
+    #  ansible.builtin.file:
+    #    state: "{{ item.state }}"
+    #    path: "{{ item.path }}"
+    #    mode: "{{ item.mode }}"
+    #  loop:
+    #    - { state: directory, path: /etc/gitea, mode: '750' }
+    #    - { state: file, path: /etc/gitea/app.ini, mode: '640' }
+
+
+

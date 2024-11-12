@@ -15,3 +15,5 @@ docker:
     basementpi:
       ansible_host: 10.11.1.10 
       ansible_ssh_user: root
+    gitea:
+      ansible_ssh_user: root
