@@ -542,6 +542,22 @@ services:
     volumes:
       - ./bookstack_db_data:/config
     restart: unless-stopped
+  wikijs:
+    image: ghcr.io/requarks/wiki:2
+    container_name: wikijs
+    environment:
+      DB_TYPE: postgres
+      DB_HOST: postgres.injust.us
+      DB_PORT: 5432
+      DB_USER: wikijs
+      DB_PASS: 3Jfr7nmY4KBauR3nuHno
+      DB_NAME: wikijs
+    restart: unless-stopped
+    labels:
+    - "traefik.http.routers.wiki.rule=Host(`wikijs.mycomputer.party`)"
+    - traefik.http.routers.wiki.tls=true
+    - "traefik.http.routers.wiki.entrypoints=websecure"
+    - "traefik.http.routers.wiki.tls.certresolver=myresolver"
 
       #  immich-server:
       #    container_name: immich_server

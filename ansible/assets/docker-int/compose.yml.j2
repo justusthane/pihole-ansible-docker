@@ -127,24 +127,6 @@ services:
         - traefik.http.routers.testweb.tls=true
         - "traefik.http.routers.testweb.entrypoints=websecure"
         - "traefik.http.routers.testweb.tls.certresolver=myresolver"
-    wiki:
-      image: ghcr.io/requarks/wiki:2
-      container_name: wiki
-      environment:
-        DB_TYPE: postgres
-        DB_HOST: postgres.injust.us
-        DB_PORT: 5432
-        DB_USER: wikijs
-        DB_PASS: 3Jfr7nmY4KBauR3nuHno
-        DB_NAME: wikijs
-      restart: unless-stopped
-      ports:
-        - "8009:3000"
-      labels:
-        - "traefik.http.routers.wiki.rule=Host(`wiki.injust.us`)"
-        - traefik.http.routers.wiki.tls=true
-        - "traefik.http.routers.wiki.entrypoints=websecure"
-        - "traefik.http.routers.wiki.tls.certresolver=myresolver"
     actual_server:
       image: docker.io/actualbudget/actual-server:latest
       ports:
